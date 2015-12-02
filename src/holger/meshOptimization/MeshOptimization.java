@@ -135,7 +135,7 @@ public class MeshOptimization {
 	    //heap_dump();
 	    heap_build();
 	    heap_dump();
-
+//repository test
 	    int[] stop = {75, 50, 25};
 	    for (int s = 0; s < stop.length; s++) {
 		int nRemovals = (int) Math.round(nVrtx*stop[s]/100.0); //calculate from s how many vertices to remove
