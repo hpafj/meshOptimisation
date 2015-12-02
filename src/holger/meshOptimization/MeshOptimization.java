@@ -51,8 +51,8 @@ public class MeshOptimization {
 	// Read command line arguments
 	//
 	int i_arg = 0;
-	Path path_nodeFile = Paths.get(args[i_arg++]);
-	Path path_elemFile = Paths.get(args[i_arg++]);
+	String inputVrtxFileName = args[i_arg++];
+	String inputTriangleFileName = args[i_arg++];
 	//
 	// Read Nodes
 	//
@@ -62,7 +62,7 @@ public class MeshOptimization {
 	     *  Read Vertices
 	     */
 	    System.out.print("Reading node file ...");
-	    br = new BufferedReader(new FileReader(path_nodeFile.toFile()));
+	    br = new BufferedReader(new FileReader(inputVrtxFileName));
 	    scnr = new Scanner(br);
 	    nVrtx = scnr.nextInt();
 	    nodeNum2vrtx = new HashMap<Integer, Vertex>(2 * nVrtx);
@@ -80,7 +80,7 @@ public class MeshOptimization {
 	     *  Read Triangles
 	     */
 	    System.out.print("Reading triangle file ...");
-	    br = new BufferedReader(new FileReader(path_elemFile.toFile()));
+	    br = new BufferedReader(new FileReader(inputTriangleFileName));
 	    scnr = new Scanner(br);
 	    nTriangles = scnr.nextInt();
 	    triangle = new Triangle[nTriangles];
@@ -135,16 +135,14 @@ public class MeshOptimization {
 	    //heap_dump();
 	    heap_build();
 	    heap_dump();
-//repository test
+
 	    int[] stop = {75, 50, 25};
 	    for (int s = 0; s < stop.length; s++) {
-		int nRemovals = (int) Math.round(nVrtx*stop[s]/100.0); //calculate from s how many vertices to remove
-		//Path path_nodeFile = Paths.get(args[i_arg++]); // calculate from s the name of the output files
-		path_nodeFile.g// fNode, fTrianglecs
-		for (int i = nRemovals; i > 0; i--) {
-		    rmVrtex(); // printcipal iteration of the basic algorithm
-		}
-		outputFiles(/*fNode, fTriangles*/);
+		int nRemovals = (int) Math.round(nVrtx * stop[s] / 100.0); //calculate from s how many vertices to remove
+		removeNVrtcs(nRemovals);
+		String reducedVrtxFileName = inputVrtxFileName + "-" + s;
+		String reducedTriangleFileName = inputTriangleFileName + "-" + s;
+		outputReducedMesh(reducedVrtxFileName, reducedTriangleFileName);
 	    }
 
 	    // for each triangle register the edges in a pair table: node x node -map-> (int x vertex). Keep a list of triangle
@@ -171,17 +169,26 @@ public class MeshOptimization {
 
     }
 
+    private static void removeNVrtcs(int n) {
+	for (int i = n; i > 0; i--) {
+	    rmVrtex(); // printcipal iteration of the basic algorithm
+	}
+    }
+
     static void rmVrtex() {
 	PairInfo p = heap_pop();
 	p.v1.pos = p.bestPos;
 	p.v2.redirect = p.v1;
 	p.v1.planeSet.add(p.v2.planeSet);
 	p.v1.pairs.addAll(p.v2.pairs);
-	p.v2.pairs =null;
-	for (Iterator<PairInfo> i = p.v1.pairs.iterator(); i.hasNext(); ) {
+	p.v2.pairs = null;
+	for (Iterator<PairInfo> i = p.v1.pairs.iterator(); i.hasNext();) {
 	    PairInfo pInLst = i.next();
-	    if (pInLst == p) i.remove();
-	    else updateProposal(pInLst);
+	    if (pInLst == p) {
+		i.remove();
+	    } else {
+		updateProposal(pInLst);
+	    }
 	}
     }
 
@@ -247,7 +254,7 @@ public class MeshOptimization {
 
     static PairInfo heap_pop() {
 	PairInfo rootElem = heap_array[0];
-	heap_array[0] = heap_array[heap_size-1];
+	heap_array[0] = heap_array[heap_size - 1];
 	heap_size--;
 	heap_siftDown(0);
 	return rootElem;
@@ -314,7 +321,63 @@ public class MeshOptimization {
 	}
     }
 
-    static void outputFiles(Path outputFilePrefix, int percentage) {
-	outputFilePrefix.toFile()+"nodes-"+percentage+"%"//output files
+    private static void outputReducedMesh(String reducedVrtxFileName, String reducedTriangleFileName) {
+	//
+	cleanUpTrianglesAndVrtcs();
+	//
+	List<Triangle> triangles = new ArrayList<Triangle>();
+	Map<Vertex, Integer> vrtcs = new HashMap<Vertex, Integer>();
+	for (int i = 0; i < triangle.length; i++) {
+	    if (triangle[i] != null) {
+		int numV1 = getVrtxNum(vrtcs, triangle[i].v1);
+		int numV2 = getVrtxNum(vrtcs, triangle[i].v2);
+		int numV3 = getVrtxNum(vrtcs, triangle[i].v3);
+	    }
+	}
     }
+
+    private static int getVrtxNum(Map<Vertex, Integer> vrtcs, Vertex v) {
+	Integer num = vrtcs.get(v);
+	if (num == null) {
+	    num = new Integer(vrtcs.size());
+	    vrtcs.put(v, num);
+	}
+	return num;
+    }
+
+    private static void cleanUpTrianglesAndVrtcs() {
+	for (int i = 0; i < triangle.length; i++) {
+	    if (triangle[i] != null) { //haven't been cleaned up yet
+		cleanUpRedirects(triangle[i]);
+		if (triangle[i].v1 == triangle[i].v2 || triangle[i].v1 == triangle[i].v3 || triangle[i].v2 == triangle[i].v3) {
+		    // This triangle is degenerated
+		    triangle[i] = null;
+		}
+	    }
+	}
+    }
+
+    private static void cleanUpRedirects(Triangle t) {
+	if (t.v1.redirect != null) {
+	    shortCutRedirects(t.v1);
+	    t.v1 = t.v1.redirect;
+	}
+	if (t.v2.redirect != null) {
+	    shortCutRedirects(t.v2);
+	    t.v2 = t.v2.redirect;
+	}
+	if (t.v2.redirect != null) {
+	    shortCutRedirects(t.v3);
+	    t.v3 = t.v3.redirect;
+	}
+    }
+
+    private static void shortCutRedirects(Vertex hd) {
+	Vertex tail = hd.redirect;
+	if (tail.redirect != null) {
+	    shortCutRedirects(tail);
+	}
+	hd.redirect = tail.redirect;
+    }
+
 }
