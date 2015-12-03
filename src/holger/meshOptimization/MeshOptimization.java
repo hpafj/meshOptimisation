@@ -322,7 +322,12 @@ public class MeshOptimization {
     }
 
     private static void outputReducedMesh(String reducedVrtxFileName, String reducedTriangleFileName) {
-	//
+	// First Pass
+	// Go through our original array of triangles and
+	// 1. clean up redirects on vertices
+	// 2. make sure that the triangles points to actual vertices (not redirects)
+	// 3. if the triangle is degenerated, erase if from the array, or else save it
+	//    in a list succsesive printing
 	cleanUpTrianglesAndVrtcs();
 	//
 	List<Triangle> triangles = new ArrayList<Triangle>();
